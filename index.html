@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>소수의견 영향력 연구</title>
+
+  <!-- ── jsPsych 코어 ─────────────────────────────────────── -->
+  <script src="lib/jspsych.min.js"></script>
+  <link  href="lib/jspsych.css" rel="stylesheet">
+
+  <!-- ── 반응형 플러그인 ───────────────────────────────────── -->
+  <script src="lib/plugin-html-button-response.min.js"></script>
+  <script src="lib/plugin-html-keyboard-response.min.js"></script>
+  <script src="lib/plugin-html-slider-response.min.js"></script>
+
+  <!-- ── 서베이 플러그인 ────────────────────────────────────── -->
+  <script src="lib/plugin-survey-multi-choice.min.js"></script>
+  <script src="lib/plugin-survey-text.min.js"></script>
+  <script src="lib/plugin-survey-likert.min.js"></script>
+  <script src="lib/plugin-survey-html-form.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'NanumGothic', sans-serif;
+    }
+    .jspsych-content-wrapper { max-width: 820px; }
+    .jspsych-content { padding: 20px 36px; }
+
+    .exp-body  { text-align: left; line-height: 1.9; }
+    .topic-title { font-size: 1.1em; font-weight: bold; margin-bottom: 0.5em; }
+    .topic-desc  { font-size: 0.93em; color: #333; line-height: 1.8; margin-bottom: 1em; text-align: left; }
+    .note        { font-size: 0.83em; color: #777; }
+    hr.soft      { border: none; border-top: 1px solid #e8e8e8; margin: 18px 0; }
+
+    .jspsych-html-slider-response-container { padding: 30px 0 10px; }
+    .jspsych-slider { cursor: pointer; }
+
+    /* 네이티브 슬라이더 값 표시 */
+    .slider-value-display {
+      text-align: match-parent;
+      font-size: 1.15em;
+      font-weight: bold;
+      color: #2c7be5;
+      margin-top: 20px;
+    }
+
+    /* 인라인 폼용 슬라이더 행 */
+    .inline-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .inline-slider-row input[type=range] { flex: 1; cursor: pointer; }
+    .inline-slider-val {
+      min-width: 38px;
+      text-align: center;
+      font-size: 1.1em;
+      font-weight: bold;
+      color: #2c7be5;
+    }
+
+    /* 인라인 폼 섹션 */
+    .form-section { margin-bottom: 28px; }
+    .form-section p { margin-bottom: 8px; }
+    .form-section textarea { width: 100%; box-sizing: border-box; }
+    .form-radio-row label { margin-right: 20px; cursor: pointer; }
+
+    .stop-wrap {
+      max-width: 460px; margin: 50px auto; padding: 36px 28px;
+      background: #fff8e1; border: 2px solid #ffc107; border-radius: 12px;
+      text-align: center;
+    }
+    .stop-wrap .icon { font-size: 2.4em; margin-bottom: 10px; }
+    .stop-wrap .hint { font-size: 0.78em; color: #bbb; margin-top: 16px; }
+
+    .majority-wrap {
+      max-width: 460px; margin: 30px auto; padding: 28px 24px;
+      background: #e8f4fd; border: 2px solid #2c7be5; border-radius: 12px;
+      text-align: center;
+    }
+    .majority-wrap h2 { color: #2c7be5; font-size: 1.5em; margin: 10px 0; }
+    .majority-wrap .pct { font-size: 1.1em; font-weight: bold; }
+
+    .minority-box {
+      background: #f7f7f7; border-left: 5px solid #888;
+      padding: 20px 22px; margin: 18px 0; border-radius: 0 8px 8px 0;
+      text-align: left; line-height: 1.85; font-size: 0.94em;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 42px; height: 42px; margin: 22px auto;
+      border: 5px solid #ddd; border-top-color: #2c7be5;
+      border-radius: 50%; animation: spin 0.9s linear infinite;
+    }
+
+    .bipolar-table { width: 100%; border-collapse: collapse; font-size: 0.86em; }
+    .bipolar-table th   { color: #666; font-weight: 400; padding: 4px 2px; text-align: center; }
+    .bipolar-table td   { padding: 9px 3px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    .bipolar-table .lbl-l { text-align: right; padding-right: 10px; width: 36%; }
+    .bipolar-table .lbl-r { text-align: left;  padding-left:  10px; width: 36%; }
+    .bipolar-table .rc    { text-align: center; width: 4%; }
+    .bipolar-table input[type=radio] { width: 15px; height: 15px; cursor: pointer; }
+
+    .jspsych-survey-likert-statement { font-size: 0.92em; }
+    .jspsych-survey-multi-choice-question { font-size: 1em; }
+  </style>
+</head>
+<body>
+<script>
+"use strict";
+
+/* ================================================================
+   ① jsPsych 초기화
+   ================================================================ */
+const jsPsych = initJsPsych({
+  /* 매 시행 완료 후 localStorage에 자동 저장 */
+  on_data_update() {
+    try {
+      localStorage.setItem(
+        `jspsych_autosave_${pID || 'unknown'}`,
+        jsPsych.data.get().csv()
+      );
+    } catch(e) {}
+  },
+  on_finish() {
+    jsPsych.data.get().localSave(
+      'csv', `data_${pID || 'unknown'}_${Date.now()}.csv`
+    );
+  }
+});
+
+/* ================================================================
+   ② 전역 상태 변수
+   ================================================================ */
+const COND = jsPsych.randomization.sampleWithoutReplacement(
+  ['AI', 'Human', 'REAL_AI'], 1
+)[0];
+
+let pID         = '';
+let firstChoice = null;
+let firstReason = '';
+let aiUsed      = false;
+
+jsPsych.data.addProperties({ condition: COND });
+
+/* ================================================================
+   ③ 헬퍼 함수
+   ================================================================ */
+
+function stop(msg = '연구자의 지시가 있기 전까지 잠시 대기해주십시오') {
+  return {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div class="stop-wrap">
+        <div class="icon">⏸</div>
+        <p><strong>${msg}</strong></p>
+        <p class="hint">※ 실험자: <kbd>Space</kbd> 를 눌러 계속하세요</p>
+      </div>`,
+    choices: [' '],
+    post_trial_gap: 300
+  };
+}
+
+/* ================================================================
+   ④ 블록 정의
+   ================================================================ */
+
+/* ── 블록 1 │ indirect topic – pre ── */
+const PRE_TOPICS = [
+  {
+    id: 'tuition',
+    title: '대학교 등록금 인상',
+    desc: `최근 대학교 등록금 인상에 대해 다양한 의견이 존재합니다.<br><br>
+      학생 복지 향상과 우수 교원 충원 등 필수적인 재정 확보를 위해 어느 정도의 인상은
+      불가피하다는 찬성 의견도 있지만, 학생들의 경제적 부담을 가중시키며 인상의 근거가
+      불명확하다고 비판하는 반대 의견도 제시됩니다.`
+  },
+  {
+    id: 'lecture_rec',
+    title: '강의 녹화본 제공 의무화',
+    desc: `대학 내 모든 강의의 녹화본 제공 의무화에 대해 다양한 의견이 존재합니다.<br><br>
+      학생들의 학습권 보장과 복습 편의를 위해 꼭 필요하다는 찬성 의견이 있기도 하지만,
+      대면 수업의 출석률과 참여도 하락을 우려하는 반대 입장도 존재합니다.`
+  },
+  {
+    id: 'abs_grade',
+    title: '절대평가 전환',
+    desc: `대학 내 성적 평가 방식을 절대평가로 전환하는 것에 대해 다양한 의견이 존재합니다.<br><br>
+      학생들 간의 소모적인 경쟁을 완화하고 순수 학업 성취도를 평가하기 위해 필요하다는
+      찬성 입장도 있지만, 학점 인플레이션으로 인해 대학 성적의 객관성과 신뢰도가 저하될
+      수 있다는 반대 입장도 존재합니다.`
+  }
+];
+
+function topicSlider(t, prefix) {
+  return {
+    type: jsPsychHtmlSliderResponse,
+    stimulus: `
+      <div class="topic-title">${t.title}</div>
+      <div class="topic-desc">${t.desc}</div>
+      <p>귀하는 '${t.title}'에 대해 어떻게 생각하십니까?
+      아래 슬라이더를 드래그하여 표시해 주십시오.<br>
+      <span class="note">왼쪽으로 갈수록 매우 반대, 오른쪽으로 갈수록 매우 찬성에 해당합니다.</span></p>`,
+    labels        : ['반대', '중립', '찬성'],
+    min: 0, max: 100, slider_start: 50,
+    require_movement: true,
+    button_label  : '다음',
+    on_load() {
+      const slider = document.querySelector('input[type="range"]');
+      const display = document.createElement('div');
+      display.className = 'slider-value-display';
+      display.textContent = slider.value;
+      slider.parentNode.appendChild(display);
+      slider.addEventListener('input', () => { display.textContent = slider.value; });
+    },
+    on_finish(d) {
+      jsPsych.data.addProperties({ [`${prefix}_${t.id}`]: d.response });
+    }
+  };
+}
+
+const BLK_pretopic = [
+  {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div class="exp-body">
+      <h3>안녕하세요.</h3>
+      <p>실험에 참여해주셔서 감사합니다.</p>
+      <p>본격적인 시작에 앞서, 본 실험과 관련된 주제에 대한 <strong>연습 질문</strong>을 준비하였습니다.</p>
+      <p>'다음'을 눌러 제시되는 3가지 주제에 대한 본인의 의견을 응답해 주십시오.</p>
+    </div>`,
+    choices: ['다음']
+  },
+  ...PRE_TOPICS.map(t => topicSlider(t, 'pre')),
+  {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: '<p>감사합니다.</p><p>\'다음\'을 한 번 눌러 실험자의 지시를 기다려 주십시오.</p>',
+    choices: ['다음']
+  },
+  {
+    type: jsPsychSurveyText,
+    questions: [{
+      prompt  : '귀하의 <strong>ID</strong>를 작성해 주십시오. <span class="note">(예: X1234)</span>',
+      name    : 'participant_id',
+      required: true,
+      columns : 15
+    }],
+    button_label: '다음',
+    on_finish(d) {
+      pID = d.response.participant_id;
+      jsPsych.data.addProperties({ participant_id: pID });
+    }
+  },
+  stop()
+];
+
+/* ── 블록 2 │ 연구 설명 + 동의서 + 팀명 ── */
+const BLK_intro = [
+  {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div class="exp-body">
+      <h2>INTRODUCTION</h2>
+      <p>안녕하세요.</p>
+      <p>본 연구는 개인의 의사결정과 관련한 연구로, 여러분은 약 60분에 걸쳐 특정 주제에 대한
+      의견과 짧은 글을 작성하는 일련의 과제에 참여하게 됩니다.</p>
+      <p>본 실험은 크게 <strong>세 부분</strong>으로 구성됩니다.</p>
+      <ul>
+        <li>첫 번째: 특정 주제에 대한 찬반 의견 및 근거를 작성하는 <strong>의견 글쓰기 과제</strong></li>
+        <li>두 번째: 같은 세션 팀원들과 진행하는 <strong>팀 토론</strong></li>
+        <li>세 번째: <strong>사후 설문조사</strong> 응답</li>
+      </ul>
+      <p>설문조사에는 <strong>주의력 점검 문항</strong>이 포함되어 있으므로 모든 문항을 꼼꼼히 읽고
+      신중하고 솔직하게 답변해 주시기 바랍니다.</p>
+      <p>참여에 대한 보상은 <strong>수업 크레딧</strong>으로 지급될 예정입니다.</p>
+      <hr class="soft">
+      <p class="note">이지민 | 고려대학교 심리학부 산업및조직심리 석사과정 | jimin823@korea.ac.kr</p>
+    </div>`,
+    choices: ['다음']
+  },
+  {
+    type: jsPsychSurveyMultiChoice,
+    questions: [{
+      prompt: `<div style="text-align:left;background:#f9f9f9;padding:18px;border-radius:6px;font-size:0.93em;line-height:1.8;">
+        <strong>연구 참여 동의서</strong><br><br>
+        저는 본 연구 참여가 자발적임을 이해합니다. 참여를 거부하더라도 어떠한 불이익도 발생하지 않습니다.
+        또한 언제든지 참여를 중단할 수 있으며, 이로 인한 어떠한 불이익이나 누적된 혜택의 상실은 없습니다.<br><br>
+        본인이 고려대학교 소속인 경우 연구 참여 여부, 거부 또는 철회 등 본 연구와 관련된 모든 결정이
+        고려대학교에서의 지위 및 향후 관계에 어떠한 불이익도 미치지 않음을 이해합니다.<br><br>
+        보상은 완료된 연구 참여량에 비례하여 지급됩니다.<br><br>
+        본인이 <strong>만 18세 이상</strong>임을 확인합니다.<br><br>
+        <hr class="soft">
+        저는 이 동의서의 내용을 읽고 충분히 이해하였으며, 고려대학교 산업 및 조직심리 연구실에서
+        저의 개인 데이터를 수집·이용·공개하는 것에 동의합니다.
+      </div>`,
+      name   : 'consent',
+      options: ['동의합니다.', '동의하지 않습니다.'],
+      required: true
+    }],
+    button_label: '다음',
+    on_finish(d) {
+      jsPsych.data.addProperties({ consent: d.response.consent });
+      if (d.response.consent === '동의하지 않습니다.') {
+        jsPsych.getDisplayElement().innerHTML =
+          '<p style="text-align:center;padding:80px;">연구 참여에 동의하지 않으셨습니다.<br>창을 닫으셔도 됩니다.</p>';
+        jsPsych.endExperiment();
+      }
+    }
+  },
+  stop(),
+  {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div class="exp-body">
+      <p>본격적으로 실험을 시작하기 전 모두 중앙으로 모여주십시오.</p>
+      <p>이 실험의 중반에서는 같은 세션에 참석한 분들이 <strong>한 팀</strong>이 되어
+      관련 주제에 대한 팀 토론이 진행될 예정입니다.</p>
+      <p>모여 가볍게 인사를 나누고, 자유롭게 <strong>팀명</strong>을 정해주십시오.</p>
+    </div>`,
+    choices: ['팀명을 정했습니다']
+  },
+  {
+    type: jsPsychSurveyText,
+    questions: [{
+      prompt: '팀명을 아래에 적어주십시오.',
+      name  : 'team_name',
+      required: true
+    }],
+    button_label: '다음',
+    on_finish(d) {
+      jsPsych.data.addProperties({ team_name: d.response.team_name });
+    }
+  },
+  stop()
+];
+
+/* ── 블록 3 │ 신문기사 + 요약 (한 화면) ── */
+const BLK_main = [
+  {
+    type: jsPsychSurveyHtmlForm,
+    preamble: `<div class="exp-body">
+      <p>하단에는 고려대학교 교내신문 중 일부가 제시되어 있습니다.</p>
+      <p>꼼꼼히 읽어보시고 하단의 빈칸에 <strong>신문기사 요약문</strong>을 작성해 주십시오.</p>
+      <p class="note">잘 보이지 않는 분들은 화면을 확대해 보실 수 있습니다. 제한 시간은 5분입니다.</p>
+      <hr class="soft">
+      <!--  ▲▲▲ 기사문 삽입 ▲▲▲  -->
+      <img src="jspsych/examples/img/article.png" style="max-width:100%;">
+      <!--  ▲▲▲ 삽입 끝 ▲▲▲  -->
+      <hr class="soft">
+    </div>`,
+    html: `
+      <div class="form-section">
+        <p><strong>위의 신문기사를 요약해 주십시오.</strong> <span class="note">(양식 자유)</span></p>
+        <textarea name="article_summary" rows="8" required></textarea>
+      </div>
+    `,
+    button_label: '다음',
+    on_finish(d) {
+      jsPsych.data.addProperties({ article_summary: d.response.article_summary });
+    }
+  },
+  stop()
+];
+
+/* ── 블록 4 │ first opinion (한 화면) ── */
+const BLK_first = [
+  {
+    type: jsPsychSurveyHtmlForm,
+    preamble: `<div class="exp-body">
+      <p>신문기사에 제시된 주제에 대해 아래 질문에 답해 주십시오.</p>
+    </div>`,
+    html: `
+      <div class="form-section">
+        <p><strong>1. 신문기사에 제시된 주제에 대해 찬성하십니까, 반대하십니까?</strong></p>
+        <div class="form-radio-row">
+          <label><input type="radio" name="first_choice" value="찬성" required> 찬성</label>
+          <label><input type="radio" name="first_choice" value="반대"> 반대</label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <p><strong>2. 얼마나 찬성/반대하시는지 본인의 의견의 강도를 표시해 주십시오.</strong><br>
+        <span class="note">왼쪽: 매우 약함 &nbsp;|&nbsp; 오른쪽: 매우 강함</span></p>
+        <div class="inline-slider-row">
+          <span>약함</span>
+          <input type="range" name="first_intensity" min="0" max="100" value="50"
+            oninput="document.getElementById('fi_val').textContent = this.value">
+          <span>강함</span>
+          <span class="inline-slider-val" id="fi_val">50</span>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <p><strong>3. 그 이유는 무엇입니까?</strong> 본인의 생각과 근거를 최대한 자세히 작성해 주십시오.
+        <strong>최소 7문장 이상, 2~3가지의 논거를 제시하여 주십시오.</strong></p>
+        <p class="note">※ 작성하신 내용은 팀 토론 과정에서 다른 팀원들에게 공유될 예정입니다.</p>
+        <textarea name="first_reason" rows="10" required></textarea>
+      </div>
+
+      <div class="form-section">
+        <p><strong>4. 위 결정에 대한 본인의 자신감을 평가해 주십시오.</strong></p>
+        <div class="inline-slider-row">
+          <span>매우<br>자신없음</span>
+          <input type="range" name="first_confidence" min="0" max="100" value="50"
+            oninput="document.getElementById('fc_val').textContent = this.value">
+          <span>매우<br>자신있음</span>
+          <span class="inline-slider-val" id="fc_val">50</span>
+        </div>
+      </div>
+    `,
+    button_label: '다음',
+    on_finish(d) {
+      firstChoice = d.response.first_choice;
+      firstReason = d.response.first_reason;
+      jsPsych.data.addProperties({
+        first_choice     : d.response.first_choice,
+        first_intensity  : d.response.first_intensity,
+        first_reason     : d.response.first_reason,
+        first_confidence : d.response.first_confidence
+      });
+    }
+  },
+  stop()
+];
+
+/* ── 블록 5 │ 분석 중 로딩 ── */
+const TRIAL_loading = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <div style="text-align:center;padding:60px 20px;">
+      <p style="font-size:1.1em;">현재 귀하가 작성한 텍스트를 <strong>분석 중</strong>입니다.</p>
+      <p>잠시만 기다려 주십시오...</p>
+      <div class="spinner"></div>
+    </div>`,
+  choices        : 'NO_KEYS',
+  trial_duration : 3500
+};
+
+/* ── 블록 6 │ 다수 피드백 ── */
+const TRIAL_majority = {
+  type: jsPsychHtmlButtonResponse,
+  stimulus() {
+    const chosen   = firstChoice === '찬성' ? '찬성' : '반대';
+    const opposite = firstChoice === '찬성' ? '반대' : '찬성';
+    return `
+      <div class="majority-wrap">
+        <p>귀하의 의견은 현재 수집된 <strong>112개</strong>의 의견 중</p>
+        <h2>『다수』 의견에 해당됩니다.</h2>
+        <hr class="soft">
+        <p>분석 결과,<br>
+          <span class="pct">82%</span>의 학생들이 귀하와 동일한
+          <strong>'${chosen}'</strong>을 선택하였으며<br>
+          18%의 학생들이 '${opposite}'을 선택하였습니다.
+        </p>
+      </div>`;
+  },
+  choices: ['다음']
+};
+
+/* ── 블록 7 │ 소수의견 제시 ── */
+const MINORITY_TEXT = {
+  pro: {
+    AI: `저는 대학교 내 조별 과제 비율 확대에 <strong>찬성</strong>합니다.<br><br>
+      현대 사회에서 기업의 직무 형태는 팀 기반 협업 중심으로 재편되고 있으며, 대학 교육은
+      여전히 개인 평가에 머물러 있어 현실과의 괴리가 큽니다.<br><br>
+      저는 <strong>AI 분석 도구를 활용하여</strong> 조별 과제가 필수적인 이유를 3가지로 정리했습니다.<br><br>
+      <strong>첫째,</strong> 조별 과제는 집단 지성을 통한 실질적인 팀 학습의 장을 제공합니다.
+      AI에 의하면 복잡한 문제 해결에는 개별 학습의 한계가 있으며, 조별 과제가 시너지를 창출한다고 합니다.<br><br>
+      <strong>둘째,</strong> 상호의존성을 바탕으로 한 실전 업무 조율 능력을 기를 수 있습니다.
+      AI는 팀워크 중심 트렌드가 앞으로도 꾸준히 증가할 것이라고 보았습니다.<br><br>
+      <strong>마지막으로,</strong> AI에 의하면 조별 과제를 통해 대인 관계 역량을 키울 수 있다고 언급합니다.
+      무임승차 문제는 평가 시스템 정교화로 충분히 통제 가능합니다.`,
+
+    Human: `저는 대학교 내 조별 과제 비율 확대에 <strong>찬성</strong>합니다.<br><br>
+      현대 사회에서 기업의 직무 형태는 팀 기반 협업 중심으로 재편되고 있으며, 대학 교육은
+      여전히 개인 평가에 머물러 있어 현실과의 괴리가 큽니다.<br><br>
+      저는 조별 과제가 필수적인 이유를 3가지로 정리했습니다.<br><br>
+      <strong>첫째,</strong> 조별 과제는 집단 지성을 통한 실질적인 팀 학습의 장을 제공합니다.
+      개별 학습은 복잡한 문제 해결에 한계가 있다고 생각합니다.<br><br>
+      <strong>둘째,</strong> 상호의존성을 바탕으로 한 실전 업무 조율 능력을 기를 수 있습니다.
+      팀워크 중심 트렌드는 앞으로도 꾸준히 증가할 것입니다.<br><br>
+      <strong>마지막으로,</strong> 조별 과제를 통해 대인 관계 역량을 키울 수 있다 생각합니다.
+      무임승차 문제는 평가 시스템 정교화로 충분히 통제 가능합니다.`,
+
+    REAL_AI: `저는 대학교 내 조별 과제 비율 확대에 <strong>찬성</strong>합니다.<br><br>
+      현대 사회에서 기업의 직무 형태는 팀 기반 협업 중심으로 재편되고 있으며, 대학 교육은
+      여전히 개인 평가에 머물러 있어 현실과의 괴리가 큽니다.<br><br>
+      제가 <strong>데이터 분석을 통해</strong> 조별 과제가 필수적인 이유를 3가지로 정리했습니다.<br><br>
+      <strong>첫째,</strong> 분석에 따르면 조별 과제는 집단 지성을 통한 실질적인 팀 학습의 장을 제공합니다.
+      개별 학습은 복잡한 문제 해결에 한계가 있습니다.<br><br>
+      <strong>둘째,</strong> 상호의존성을 바탕으로 한 실전 업무 조율 능력을 기를 수 있습니다.
+      팀워크 중심 트렌드는 앞으로도 꾸준히 증가할 것으로 예측됩니다.<br><br>
+      <strong>마지막으로,</strong> 조별 과제를 통해 대인 관계 역량을 키울 수 있습니다.
+      무임승차 문제는 평가 시스템 정교화로 충분히 통제 가능합니다.`
+  },
+  con: {
+    AI: `저는 대학교 내 조별 과제 비율 확대에 <strong>반대</strong>합니다.<br><br>
+      조별 과제가 협업 능력을 기른다는 주장은 모든 조원이 동등한 동기와 능력을 갖추고 있다는
+      이상적인 상황을 전제로 합니다.<br><br>
+      저는 <strong>AI 분석 도구를 활용하여</strong> 조별 과제 시스템의 문제점을 3가지로 정리했습니다.<br><br>
+      <strong>첫째,</strong> AI 분석에 따르면 강제된 협업은 오히려 막대한 과정 손실을 초래합니다.
+      절차적·감정적 소모에 에너지를 빼앗기면서 학업 성취도가 저하됩니다.<br><br>
+      <strong>둘째,</strong> AI는 무임승차가 조별 과제의 가장 치명적인 한계라고 분석합니다.
+      학점의 신뢰도를 심각하게 떨어뜨립니다.<br><br>
+      <strong>마지막으로,</strong> AI는 통제 불능의 관계적 갈등이 심각한 감정적 소진과 학업 스트레스를
+      유발하며 교육적 효과를 무의미하게 만든다고 진단합니다.`,
+
+    Human: `저는 대학교 내 조별 과제 비율 확대에 <strong>반대</strong>합니다.<br><br>
+      조별 과제가 협업 능력을 기른다는 주장은 이상적인 상황을 전제로 합니다.
+      현실에서는 기여도 불균형으로 교육적 효과가 나타나지 않는 경우가 빈번합니다.<br><br>
+      저는 현재 조별 과제 시스템의 문제점을 3가지로 정리했습니다.<br><br>
+      <strong>첫째,</strong> 강제된 협업은 오히려 막대한 과정 손실을 초래합니다.
+      절차적·감정적 소모에 에너지를 빼앗기면서 학업 성취도가 저하된다고 생각합니다.<br><br>
+      <strong>둘째,</strong> 무임승차가 조별 과제의 가장 치명적인 한계입니다.
+      개인의 기여도를 가려내지 못해 공정성이 저하됩니다.<br><br>
+      <strong>마지막으로,</strong> 관계적 갈등과 심리적 소진이 기대했던 교육적 효과를 무의미하게
+      만드는 것 같습니다.`,
+
+    REAL_AI: `저는 대학교 내 조별 과제 비율 확대에 <strong>반대</strong>합니다.<br><br>
+      조별 과제가 협업 능력을 기른다는 주장은 이상적인 상황을 전제로 합니다.
+      현실에서는 기여도 불균형으로 교육적 효과가 나타나지 않는 경우가 빈번합니다.<br><br>
+      제가 <strong>데이터 분석을 통해</strong> 현재 조별 과제 시스템의 문제점을 3가지로 정리했습니다.<br><br>
+      <strong>첫째,</strong> 분석에 따르면 강제된 협업은 오히려 막대한 과정 손실을 초래합니다.
+      학생들의 학업 성취도가 개인 과제일 때보다 저하될 수 있습니다.<br><br>
+      <strong>둘째,</strong> 무임승차는 조별 과제의 가장 치명적인 한계입니다.
+      분배적 공정성과 학점의 신뢰도를 심각하게 떨어뜨립니다.<br><br>
+      <strong>마지막으로,</strong> 이러한 통제 불능의 갈등이 학생들에게 심각한 감정적 소진과
+      학업 스트레스를 유발하며, 교육적 효과를 완전히 무의미하게 만듭니다.`
+  }
+};
+
+const COND_LABEL = {
+  AI     : '실제 실험에 참여한 피험자가 <strong>AI를 사용하여</strong>',
+  Human  : '실제 실험에 참여한 피험자가',
+  REAL_AI: '<strong>AI가</strong>'
+};
+
+function minorityBlock(direction) {
+  const targetChoice = direction === 'pro' ? '반대' : '찬성';
+  return {
+    timeline: [
+      // 지시문
+      {
+        type: jsPsychHtmlButtonResponse,
+        stimulus() {
+          return `<div class="exp-body">
+            <p>귀하와 반대되는 소수 의견을 보여드리겠습니다.</p>
+            <p>해당 소수의견은 ${COND_LABEL[COND]} 작성한 내용입니다.</p>
+            <p>해당 의견을 <strong>꼼꼼히</strong> 읽어주십시오.</p>
+          </div>`;
+        },
+        choices: ['소수의견 읽기']
+      },
+      // 소수의견 본문 + 감상 작성 (한 화면)
+      {
+        type: jsPsychSurveyHtmlForm,
+        preamble: `<div class="minority-box">${MINORITY_TEXT[direction][COND]}</div>`,
+        html: `
+          <div class="form-section">
+            <p><strong>해당 소수의견을 읽고 나서 든 생각이나 느낌을 작성해 주십시오.</strong></p>
+            <textarea name="minority_impression" rows="6" required></textarea>
+          </div>
+        `,
+        button_label: '다음',
+        on_finish(d) {
+          jsPsych.data.addProperties({
+            minority_direction  : direction,
+            minority_condition  : COND,
+            minority_impression : d.response.minority_impression
+          });
+        }
+      },
+      stop()
+    ],
+    conditional_function() { return firstChoice === targetChoice; }
+  };
+}
+
+const BLK_minority = [
+  minorityBlock('pro'),
+  minorityBlock('con')
+];
+
+/* ── 블록 8 │ second opinion (한 화면) ── */
+const BLK_second = [
+  {
+    type: jsPsychSurveyHtmlForm,
+    preamble: `<div class="exp-body">
+      <p>이전에 제시되었던 교내 신문기사를 다시 한 번 제시해 드리겠습니다.</p>
+      <p>신문기사와 방금 전 읽은 소수의견을 토대로 다시 한 번 더 응답하여 주십시오.</p>
+      <hr class="soft">
+      <!--  ▲▲▲ 기사문 삽입 ▲▲▲  -->
+      <img src="jspsych/examples/img/article.png" style="max-width:100%;">
+      <!--  ▲▲▲ 삽입 끝 ▲▲▲  -->
+      <hr class="soft">
+    </div>`,
+    html: `
+      <div class="form-section">
+        <p><strong>1. 해당 주제에 대해 찬성하십니까, 반대하십니까?</strong></p>
+        <div class="form-radio-row">
+          <label><input type="radio" name="second_choice" value="찬성" required> 찬성</label>
+          <label><input type="radio" name="second_choice" value="반대"> 반대</label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <p><strong>2. 얼마나 찬성/반대하시는지 본인 의견의 강도를 표시해 주십시오.</strong><br>
+        <span class="note">왼쪽: 매우 약함 &nbsp;|&nbsp; 오른쪽: 매우 강함</span></p>
+        <div class="inline-slider-row">
+          <span>약함</span>
+          <input type="range" name="second_intensity" min="0" max="100" value="50"
+            oninput="document.getElementById('si_val').textContent = this.value">
+          <span>강함</span>
+          <span class="inline-slider-val" id="si_val">50</span>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <p><strong>3. 아래에 귀하가 앞서 작성하신 의견을 다시 확인해보시고, 내용을 수정하거나
+        새롭게 보충하고 싶은 부분을 보완해 주십시오.</strong></p>
+        <p class="note" style="margin-bottom:6px;">▼ 귀하가 이전에 작성한 의견</p>
+        <div style="background:#f0f4ff;border-left:4px solid #2c7be5;padding:14px 16px;
+                    margin-bottom:12px;border-radius:0 6px 6px 0;font-size:0.93em;
+                    line-height:1.85;white-space:pre-wrap;" id="prev-reason-display"></div>
+        <p class="note">이제 곧 팀 토론이 시작되며, 마지막으로 귀하의 입장을 정리할 수 있는 시간입니다.</p>
+        <textarea name="second_reason" rows="10" required id="second-reason-area"></textarea>
+      </div>
+
+      <div class="form-section">
+        <p><strong>4. 위 결정에 대한 본인의 자신감을 평가해 주십시오.</strong></p>
+        <div class="inline-slider-row">
+          <span>매우<br>자신없음</span>
+          <input type="range" name="second_confidence" min="0" max="100" value="50"
+            oninput="document.getElementById('sc_val').textContent = this.value">
+          <span>매우<br>자신있음</span>
+          <span class="inline-slider-val" id="sc_val">50</span>
+        </div>
+      </div>
+    `,
+    button_label: '다음',
+    on_load() {
+      document.getElementById('prev-reason-display').textContent = firstReason;
+    },
+    on_finish(d) {
+      jsPsych.data.addProperties({
+        second_choice     : d.response.second_choice,
+        second_intensity  : d.response.second_intensity,
+        second_reason     : d.response.second_reason,
+        second_confidence : d.response.second_confidence
+      });
+    }
+  },
+  stop()
+];
+
+/* ── 블록 9 │ 자유회상 ── */
+const BLK_recall = [
+  {
+    type: jsPsychSurveyText,
+    questions: [{
+      prompt: `방금 제시되었던 소수 의견에 대해 <strong>기억나는 대로</strong> 작성해 주십시오.<br>
+        생각나는 특정 문장, 근거, 키워드 등 양식은 자유롭게 작성 가능하며, 최대한 자세히 써주시기 바랍니다.`,
+      name    : 'free_recall',
+      rows    : 8,
+      required: true
+    }],
+    button_label: '다음'
+  },
+  stop()
+];
+
+/* ── 블록 10 │ minority perception ── */
+const L7_AGREE = [
+  '전혀 동의하지 않음','동의하지 않음','다소 동의하지 않음',
+  '동의하지도 않지도 않음','다소 동의함','동의함','매우 동의함'
+];
+const L7_FIT = [
+  '극히 부적절함','어느 정도 부적절함','약간 부적절함',
+  '적절하지도 부적절하지도 않음','약간 적절함','어느 정도 적절함','극히 적절함'
+];
+const P_RECALL = '<p>방금 제시된 소수의견을 떠올리며 다음의 문항에 얼마나 동의하는지 표시해 주십시오.</p>';
+const P_FIT    = '<p>다음의 형용사들이 제시되었던 소수의견을 얼마나 잘 설명하고 있는지 평가해 주십시오.</p>';
+
+const BLK_perception = [
+  {
+    type    : jsPsychSurveyLikert,
+    preamble: P_RECALL,
+    questions: [
+      { prompt: '그의 의견은 그가 소유하고 있다고 느낀다.',                              name: 'own_1', labels: L7_AGREE, required: true },
+      { prompt: '그는 그의 의견에 대해 매우 높은 수준의 개인적 소유감을 갖고 있다고 본다.', name: 'own_2', labels: L7_AGREE, required: true },
+      { prompt: '해당 소수의견은 소수의견을 제시한 자의 것이다.',                          name: 'own_3', labels: L7_AGREE, required: true },
+      { prompt: '해당 소수의견은 그/그녀의 것이라고 보기 어렵다.',                          name: 'own_4', labels: L7_AGREE, required: true }
+    ],
+    button_label: '다음'
+  },
+  {
+    type    : jsPsychSurveyLikert,
+    preamble: P_FIT,
+    questions: [
+      { prompt: '진정성 있는 (authentic/sincere)', name: 'auth_1', labels: L7_FIT, required: true },
+      { prompt: '가식 없는 (genuine)',             name: 'auth_2', labels: L7_FIT, required: true },
+      { prompt: '신뢰할 수 있는 (trustworthy)',    name: 'auth_3', labels: L7_FIT, required: true },
+      { prompt: '진실된 (true/honest)',            name: 'auth_4', labels: L7_FIT, required: true }
+    ],
+    button_label: '다음'
+  },
+  {
+    type    : jsPsychSurveyLikert,
+    preamble: P_FIT,
+    questions: [
+      { prompt: '전문적인 (Expert)',             name: 'exp_1', labels: L7_AGREE, required: true },
+      { prompt: '경험이 많음 (Experienced)',     name: 'exp_2', labels: L7_AGREE, required: true },
+      { prompt: '지식이 풍부한 (Knowledgeable)', name: 'exp_3', labels: L7_AGREE, required: true },
+      { prompt: '자격이 있는 (Qualified)',       name: 'exp_4', labels: L7_AGREE, required: true },
+      { prompt: '숙련된/능숙한 (Skilled)',       name: 'exp_5', labels: L7_AGREE, required: true }
+    ],
+    button_label: '다음'
+  },
+  {
+    type    : jsPsychSurveyLikert,
+    preamble: P_FIT,
+    questions: [
+      { prompt: '객관적인 (objective)',       name: 'obj_1', labels: L7_FIT, required: true },
+      { prompt: '논리적인 (logical)',         name: 'obj_2', labels: L7_FIT, required: true },
+      { prompt: '사실에 근거한 (fact-based)', name: 'obj_3', labels: L7_FIT, required: true },
+      { prompt: '타당한 (valid)',             name: 'obj_4', labels: L7_FIT, required: true }
+    ],
+    button_label: '다음'
+  },
+  stop()
+];
+
+/* ── 블록 11 │ indirect topic – post ── */
+const BLK_posttopic = [
+  {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div class="exp-body">
+      <p>다음은 대학 내 논쟁의 대상이 되는 대표적인 3가지 사안에 대한 질문입니다.</p>
+      <p>본 질문들은 실험 도입부에 연습 문항으로 한 차례 제시된 바 있습니다.</p>
+      <p>다시 한번 문항을 주의깊게 읽어보시고, <strong>현재 시점에서의 귀하의 솔직한 의견</strong>을 응답해 주십시오.</p>
+    </div>`,
+    choices: ['다음']
+  },
+  ...PRE_TOPICS.map(t => topicSlider(t, 'post')),
+  stop()
+];
+
+/* ── 블록 12 │ 사후설문 ── */
+const TRIAL_aiAttitude = {
+  type    : jsPsychSurveyLikert,
+  preamble: '<p>다음 문항에 동의하거나 동의하지 않는 정도를 표시해 주십시오. 정답이나 오답은 존재하지 않습니다.</p>',
+  questions: [
+    { prompt: '나는 인공지능(AI) 시스템을 일상생활에서 활용하는 것에 관심이 있다',  name: 'ai_att_1', labels: L7_AGREE, required: true },
+    { prompt: '인공지능(AI)의 유익한 활용분야는 많다',                              name: 'ai_att_2', labels: L7_AGREE, required: true },
+    { prompt: '인공지능(AI)은 흥미롭다',                                            name: 'ai_att_3', labels: L7_AGREE, required: true },
+    { prompt: '인공지능(AI)은 이 나라에 새로운 경제적 기회를 제공할 수 있다',        name: 'ai_att_4', labels: L7_AGREE, required: true },
+    { prompt: '나는 인공지능(AI)이 위험하다고 생각한다',                            name: 'ai_att_5', labels: L7_AGREE, required: true },
+    { prompt: '조직들은 인공지능(AI)를 비윤리적으로 사용한다',                      name: 'ai_att_6', labels: L7_AGREE, required: true }
+  ],
+  button_label: '다음'
+};
+
+const TRIAL_aiExp = {
+  type: jsPsychSurveyMultiChoice,
+  questions: [{
+    prompt  : '귀하는 AI 서비스를 이용해 보셨습니까?',
+    name    : 'ai_use_exp',
+    options : ['예', '아니요'],
+    required: true
+  }],
+  button_label: '다음',
+  on_finish(d) {
+    aiUsed = d.response.ai_use_exp === '예';
+    jsPsych.data.addProperties({ ai_use_experience: d.response.ai_use_exp });
+  }
+};
+
+const TRIAL_aiFreq = {
+  timeline: [{
+    type: jsPsychSurveyMultiChoice,
+    questions: [{
+      prompt  : '귀하는 최근 한 달 간 AI를 얼마나 사용하셨습니까?',
+      name    : 'ai_use_freq',
+      options : ['매일','일주일에 4~6번','일주일에 2~3번','일주일에 한 번','한달에 1~2번','한 번도 없음'],
+      required: true
+    }],
+    button_label: '다음'
+  }],
+  conditional_function() { return aiUsed; }
+};
+
+const TRIAL_nfc = {
+  type    : jsPsychSurveyLikert,
+  preamble: '<p>다음 문항에 동의하거나 동의하지 않는 정도를 표시해 주십시오. 정답이나 오답은 존재하지 않습니다.</p>',
+  questions: [
+    { prompt: '나는 단순한 문제보다 복잡한 문제를 더 선호한다',                              name: 'nfc_1', labels: L7_AGREE, required: true },
+    { prompt: '나는 많은 생각을 필요로 하는 상황을 책임지고 처리하는 것을 좋아한다',          name: 'nfc_2', labels: L7_AGREE, required: true },
+    { prompt: '나는 오랜 시간 동안 열심히 숙고(깊게 생각)하는 것에서 만족감을 얻는다',        name: 'nfc_3', labels: L7_AGREE, required: true },
+    { prompt: '생각하는 것은 나에게 재미있는 일이 아니다',                                   name: 'nfc_4', labels: L7_AGREE, required: true },
+    { prompt: '나는 내 사고력을 확실히 자극하는 일보다 별로 생각할 필요가 없는 일을 더 선호한다', name: 'nfc_5', labels: L7_AGREE, required: true },
+    { prompt: '나는 깊이 생각해야 하는 상황은 가급적 피하려고 한다',                          name: 'nfc_6', labels: L7_AGREE, required: true }
+  ],
+  button_label: '다음'
+};
+
+const TRIAL_nfcc = {
+  type    : jsPsychSurveyLikert,
+  preamble: '<p>다음 문항에 동의하거나 동의하지 않는 정도를 표시해 주십시오. 정답이나 오답은 존재하지 않습니다.</p>',
+  questions: [
+    { prompt: '나는 불확실한 상황을 좋아하지 않는다',                                              name: 'nfcc_1', labels: L7_AGREE, required: true },
+    { prompt: '나는 규칙적인 시간에 따라 잘 정돈된 생활이 내 성향에 잘 맞는다',                    name: 'nfcc_2', labels: L7_AGREE, required: true },
+    { prompt: '나는 앞으로 무엇을 기대할 수 있을지 모르는 상황에 들어가는 것을 좋아하지 않는다',     name: 'nfcc_3', labels: L7_AGREE, required: true },
+    { prompt: '나는 일관된 일상을 유지하는 것이 삶을 더 즐겁게 해준다고 생각한다',                  name: 'nfcc_4', labels: L7_AGREE, required: true },
+    { prompt: '이 문항을 읽으셨다면 <strong>\'다소 동의함\'</strong>을 선택해 주십시오', name: 'nfcc_attn', labels: L7_AGREE, required: true },
+    { prompt: '나는 명확하고 체계적인 생활 방식을 선호한다',                                       name: 'nfcc_5', labels: L7_AGREE, required: true },
+    { prompt: '나는 예측할 수 없는 상황을 싫어한다',                                               name: 'nfcc_6', labels: L7_AGREE, required: true }
+  ],
+  button_label: '다음'
+};
+
+const NARC_ITEMS = [
+  ['나는 별로 개의치 않고 다른 사람의 지시에 따른다',     '나는 다른 사람들에게 권위를 갖는 것을 좋아한다'],
+  ['나는 권력 그 자체에는 별 관심이 없다',               '나는 권력에 대한 의지가 강하다'],
+  ['권위를 갖는 것이 나에게는 큰 의미가 없다',            '사람들은 항상 나의 권위를 인정해 주는 것 같다'],
+  ['리더십은 오랜 시간에 걸쳐 개발되는 것이다',          '나는 타고난 리더이다'],
+  ['사람들에게 칭찬을 받으면 나는 때때로 당황하게 된다',  '다른 사람들이 그렇게 말해주기 때문에 나는 내가 괜찮은 사람이라고 생각한다'],
+  ['나는 내 몸매를 과시하기를 별로 좋아하지 않는다',     '나는 내 몸매를 과시하기를 좋아한다'],
+  ['나의 신체는 별 볼일 없다',                           '나는 내 몸을 바라보는 것을 좋아한다'],
+  ['나는 나 자신을 자랑하지 않으려고 노력한다',           '나는 기회가 되면 나의 자랑거리를 드러내 보이는 경향이 있다'],
+  ['나는 거울을 들여다보는 데 별 관심이 없다',            '나는 거울을 보는 것을 좋아한다'],
+  ['나는 사람들을 조종하고 있는 내 모습이 싫다',          '사람들을 내 마음대로 조종하는 것이 나에게는 쉬운 일이다'],
+  ['나는 대개 내가 받을만한 대접을 받는다',               '나는 내가 받아 마땅한 대접을 해줄 것을 요구한다'],
+  ['나는 다른 사람을 위해 무언가 하는 것을 좋아한다',     '나는 다른 사람들에게 기대하는 것이 많다'],
+  ['나는 그럴 만한 일이 생기면 그것에 대해 만족한다',     '나는 내가 당연히 얻어야 하는 것을 모두 얻을 때까지 결코 만족하지 않을 것이다']
+];
+
+function buildNarcTable() {
+  const header = `<tr>
+    <th style="width:37%;"></th>
+    ${[1,2,3,4,5,6,7].map(n => `<th class="rc">${n}</th>`).join('')}
+    <th style="width:37%;"></th>
+  </tr>`;
+  const rows = NARC_ITEMS.map((pair, i) => `
+    <tr>
+      <td class="lbl-l">${pair[0]}</td>
+      ${[1,2,3,4,5,6,7].map(v =>
+        `<td class="rc"><input type="radio" name="narc_${i}" value="${v}" required></td>`
+      ).join('')}
+      <td class="lbl-r">${pair[1]}</td>
+    </tr>`
+  ).join('');
+  return `
+    <p>다음에는 사람들이 자신에 대해 갖는 일반적인 태도를 나타내는 문장이 <strong>쌍</strong>으로
+    제시되어 있습니다. 양쪽에 위치한 두 문장을 읽고 귀하가 좀 더 동의하는 문장 쪽에 표시해 주십시오.</p>
+    <table class="bipolar-table">
+      <thead>${header}</thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+const TRIAL_narcissism = {
+  type        : jsPsychSurveyHtmlForm,
+  html        : buildNarcTable(),
+  button_label: '다음',
+  on_finish(d) {
+    const out = {};
+    NARC_ITEMS.forEach((_, i) => { out[`narc_${i+1}`] = d.response[`narc_${i}`]; });
+    jsPsych.data.addProperties(out);
+  }
+};
+
+const BLK_postsurvey = [
+  TRIAL_aiAttitude,
+  TRIAL_aiExp,
+  TRIAL_aiFreq,
+  TRIAL_nfc,
+  TRIAL_nfcc,
+  TRIAL_narcissism
+];
+
+/* ── 블록 13 │ Manipulation check ── */
+const BLK_manip = [{
+  type: jsPsychSurveyMultiChoice,
+  questions: [
+    {
+      prompt  : '본 실험에서 귀하의 의견은 무엇이었습니까?',
+      name    : 'manip_position',
+      options : ['다수의견 (majority)', '소수의견 (minority)'],
+      required: true
+    },
+    {
+      prompt  : '본 실험에서 귀하에게 제시된 소수의견에 대한 질문입니다. 읽고 해당되는 문장을 선택해 주십시오.',
+      name    : 'manip_source',
+      options : [
+        '내가 읽은 소수의견은 AI의 의견이다.',
+        '내가 읽은 소수의견은 AI의 지원을 받은 특정 참가자의 의견이다.',
+        "내가 읽은 소수의견은 AI의 지원을 '받지 않은' 특정 참가자의 의견이다."
+      ],
+      required: true
+    }
+  ],
+  button_label: '다음'
+}];
+
+/* ── 블록 14 │ 인구통계학적 (한 화면) ── */
+const BLK_demo = [{
+  type: jsPsychSurveyHtmlForm,
+  preamble: '<p>다음은 연구 목적으로 수집되는 기본 인적 사항입니다. 모든 정보는 익명으로 처리되며 연구 목적 외에는 사용되지 않습니다.</p>',
+  html: `
+    <div class="form-section">
+      <label><strong>출생연도</strong> <span class="note">(예: 2000)</span><br>
+      <input type="text" name="birth_year" required style="width:110px;margin-top:4px;"></label>
+    </div>
+
+    <div class="form-section">
+      <label><strong>국적</strong><br>
+      <input type="text" name="nationality" required style="width:220px;margin-top:4px;"></label>
+    </div>
+
+    <div class="form-section">
+      <label><strong>전공</strong> <span class="note">(대학생/대학원생의 경우)</span><br>
+      <input type="text" name="major" style="width:220px;margin-top:4px;"></label>
+    </div>
+
+    <div class="form-section">
+      <p><strong>성별</strong></p>
+      <div class="form-radio-row">
+        <label><input type="radio" name="gender" value="남성" required> 남성</label>
+        <label><input type="radio" name="gender" value="여성"> 여성</label>
+        <label><input type="radio" name="gender" value="논바이너리/제3의 성"> 논바이너리/제3의 성</label>
+        <label><input type="radio" name="gender" value="응답하고 싶지 않음"> 응답하고 싶지 않음</label>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <p><strong>최종 학력</strong></p>
+      <label style="display:block;margin-bottom:6px;"><input type="radio" name="education" value="고등학교 졸업 이하" required> 고등학교 졸업 이하</label>
+      <label style="display:block;margin-bottom:6px;"><input type="radio" name="education" value="대학교 재학"> 대학교 재학</label>
+      <label style="display:block;margin-bottom:6px;"><input type="radio" name="education" value="대학교 졸업"> 대학교 졸업</label>
+      <label style="display:block;margin-bottom:6px;"><input type="radio" name="education" value="대학원 재학"> 대학원 재학</label>
+      <label style="display:block;margin-bottom:6px;"><input type="radio" name="education" value="석/박사 졸업"> 석/박사 졸업</label>
+      <label style="display:block;margin-bottom:6px;"><input type="radio" name="education" value="기타"> 기타</label>
+    </div>
+  `,
+  button_label: '다음',
+  on_finish(d) {
+    jsPsych.data.addProperties({
+      birth_year  : d.response.birth_year,
+      nationality : d.response.nationality,
+      major       : d.response.major,
+      gender      : d.response.gender,
+      education   : d.response.education
+    });
+  }
+}];
+
+/* ── 블록 15 │ 디브리핑 & 종료 ── */
+const BLK_debrief = [
+  {
+    type: jsPsychSurveyText,
+    questions: [{
+      prompt  : '귀하가 생각했을 때 이 연구의 의도나 목적이 무엇이라고 생각하시나요?',
+      name    : 'research_purpose_guess',
+      rows    : 5,
+      required: true
+    }],
+    button_label: '제출하기'
+  },
+  {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div style="text-align:center;padding:50px 20px;">
+      <h2>실험이 완료되었습니다.</h2>
+      <p>소중한 시간을 내어 참여해 주셔서 진심으로 감사합니다.</p>
+      <p>크레딧 지급 관련 사항은 연구자의 안내에 따라 주십시오.</p>
+      <p class="note" style="margin-top:20px;">데이터가 저장됩니다...</p>
+    </div>`,
+    choices: ['확인']
+  }
+];
+
+/* ================================================================
+   ⑤ 전체 타임라인 조립 & 실험 실행
+   ================================================================ */
+const timeline = [
+  ...BLK_pretopic,
+  ...BLK_intro,
+  ...BLK_main,
+  ...BLK_first,
+  TRIAL_loading,
+  TRIAL_majority,
+  stop(),
+  ...BLK_minority,
+  ...BLK_second,
+  ...BLK_recall,
+  ...BLK_perception,
+  ...BLK_posttopic,
+  ...BLK_postsurvey,
+  ...BLK_manip,
+  ...BLK_demo,
+  ...BLK_debrief
+];
+
+jsPsych.run(timeline);
+</script>
+</body>
+</html>
